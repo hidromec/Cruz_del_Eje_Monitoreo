@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>AQUA SCADA · Planta de Bombeo</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@500;600;700&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root{
+    --bg-main:   #090d12;
+    --bg-card:   #101720;
+    --bg-inner:  #0b1017;
+    --border:    #1c2733;
+    --border-lt: #2a3847;
+
+    --b1: #00d4ff;   /* Bomba 1 · CFW-11 · variador  → frecuencia variable = azul eléctrico */
+    --b1-dim: rgba(0,212,255,.12);
+    --b2: #ffab2e;   /* Bomba 2 · SSW · arranque suave → rampa térmica = ámbar */
+    --b2-dim: rgba(255,171,46,.12);
+
+    --green:  #00e676;
+    --red:    #ff3b5c;
+    --yellow: #ffc107;
+    --gray:   #4c5c6b;
+
+    --text-1: #e7eef3;
+    --text-2: #82949f;
+    --text-3: #3d4b55;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+    background:
+        radial-gradient(ellipse at 15% 0%, rgba(0,212,255,.05), transparent 45%),
+        radial-gradient(ellipse at 85% 10%, rgba(255,171,46,.05), transparent 45%),
+        var(--bg-main);
+    color:var(--text-1);
+    font-family:'Rajdhani',sans-serif;
+    min-height:100vh;
+}
+::selection{ background:var(--b1); color:#00131a; }
+
+/* ═══ HEADER ═══ */
+header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 22px; height:60px;
+    border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg,#0d141b,var(--bg-main));
+    position:sticky; top:0; z-index:20;
+}
+.hdr-brand{display:flex;align-items:center;gap:12px;}
+.hdr-mark{
+    width:36px;height:36px;border-radius:9px;
+    border:2px solid var(--b1); display:flex;align-items:center;justify-content:center;
+    box-shadow:0 0 12px rgba(0,212,255,.35);
+    flex-shrink:0;
+}
+.hdr-mark svg{width:19px;height:19px;fill:var(--b1);}
+.hdr-title{font-family:'Orbitron',sans-serif;font-size:.95rem;font-weight:800;letter-spacing:2px;}
+.hdr-sub{font-family:'Roboto Mono',monospace;font-size:.62rem;color:var(--text-2);letter-spacing:1.5px;margin-top:2px;}
+.hdr-right{display:flex;align-items:center;gap:14px;}
+.conn-pill{
+    display:flex;align-items:center;gap:7px;
+    background:var(--bg-card);border:1px solid var(--border);border-radius:20px;
+    padding:5px 12px;font-family:'Roboto Mono',monospace;font-size:.62rem;color:var(--text-2);letter-spacing:.5px;
+}
+.conn-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 2s infinite;}
+.conn-dot.off{background:var(--red);box-shadow:0 0 6px var(--red);animation:none;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+.hdr-clock{font-family:'Orbitron',sans-serif;font-size:1.05rem;color:var(--text-1);letter-spacing:2px;}
+
+main{max-width:1180px;margin:0 auto;padding:20px 16px 40px;}
+
+.section-label{
+    font-family:'Roboto Mono',monospace;font-size:.64rem;letter-spacing:3px;color:var(--text-3);
+    text-transform:uppercase;margin:26px 0 12px;padding-left:11px;border-left:2px solid var(--b1);
+}
+.section-label:first-child{margin-top:0;}
+
+.influx-error{
+    display:none;margin-bottom:14px;padding:8px 14px;border-radius:7px;
+    background:rgba(255,59,92,.08);border:1px solid rgba(255,59,92,.3);
+    font-family:'Roboto Mono',monospace;font-size:.68rem;color:var(--red);letter-spacing:.4px;
+}
+
+/* ═══ PUMP CARDS ═══ */
+.pumps-row{display:flex;gap:16px;flex-wrap:wrap;}
+.pump-card{
+    flex:1 1 420px; min-width:320px;
+    background:var(--bg-card); border:1px solid var(--border); border-radius:14px;
+    padding:18px 18px 20px; position:relative; overflow:hidden;
+}
+.pump-card::before{
+    content:''; position:absolute; top:0; left:0; right:0; height:2px;
+}
+.pump-card.b1::before{background:linear-gradient(90deg,transparent,var(--b1),transparent);}
+.pump-card.b2::before{background:linear-gradient(90deg,transparent,var(--b2),transparent);}
+
+.pc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;}
+.pc-id{font-family:'Roboto Mono',monospace;font-size:.6rem;letter-spacing:2px;color:var(--text-3);}
+.pc-name{font-family:'Orbitron',sans-serif;font-size:1.05rem;font-weight:700;letter-spacing:.5px;margin-top:3px;}
+.pc-equip{font-family:'Roboto Mono',monospace;font-size:.65rem;color:var(--text-2);margin-top:2px;}
+.pc-updated{font-family:'Roboto Mono',monospace;font-size:.58rem;color:var(--text-3);text-align:right;}
+
+.status-pill{
+    display:inline-flex;align-items:center;gap:8px;padding:6px 14px 6px 10px;border-radius:20px;
+    font-family:'Orbitron',sans-serif;font-size:.7rem;font-weight:700;letter-spacing:1px;
+    background:var(--bg-inner); border:1px solid var(--border-lt); margin-bottom:16px;
+}
+.status-dot{width:9px;height:9px;border-radius:50%;background:var(--gray);}
+.status-pill.marcha .status-dot{background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 1.4s infinite;}
+.status-pill.marcha{color:var(--green);border-color:rgba(0,230,118,.3);}
+.status-pill.falla .status-dot{background:var(--red);box-shadow:0 0 8px var(--red);}
+.status-pill.falla{color:var(--red);border-color:rgba(255,59,92,.35);animation:pulseBorder 1s infinite alternate;}
+@keyframes pulseBorder{0%{box-shadow:0 0 0 rgba(255,59,92,0)}100%{box-shadow:0 0 14px rgba(255,59,92,.25)}}
+.status-pill.detenida{color:var(--text-2);}
+.status-pill.deshabilitada .status-dot{background:var(--yellow);box-shadow:0 0 8px var(--yellow);}
+.status-pill.deshabilitada{color:var(--yellow);border-color:rgba(255,193,7,.3);}
+
+/* ── Hero readout: gauge + waveform (B1) / gauge + ramp arc (B2) ── */
+.hero-readout{display:flex;align-items:center;gap:18px;margin-bottom:14px;}
+.gauge-wrap{position:relative;width:118px;height:118px;flex-shrink:0;}
+.gauge-wrap svg{width:100%;height:100%;transform:rotate(-90deg);}
+.gauge-bg{fill:none;stroke:var(--bg-inner);stroke-width:9;}
+.gauge-fg{fill:none;stroke-width:9;stroke-linecap:round;transition:stroke-dashoffset .6s ease;}
+.pump-card.b1 .gauge-fg{stroke:var(--b1);filter:drop-shadow(0 0 5px rgba(0,212,255,.5));}
+.pump-card.b2 .gauge-fg{stroke:var(--b2);filter:drop-shadow(0 0 5px rgba(255,171,46,.5));}
+.gauge-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.gauge-val{font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:700;}
+.pump-card.b1 .gauge-val{color:var(--b1);}
+.pump-card.b2 .gauge-val{color:var(--b2);}
+.gauge-unit{font-family:'Roboto Mono',monospace;font-size:.58rem;color:var(--text-2);letter-spacing:1px;margin-top:1px;}
+
+.hero-side{flex:1;min-width:0;}
+.hero-metric{margin-bottom:10px;}
+.hero-metric:last-child{margin-bottom:0;}
+.hm-label{font-family:'Roboto Mono',monospace;font-size:.6rem;color:var(--text-2);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}
+.hm-val{font-family:'Orbitron',sans-serif;font-size:1.15rem;font-weight:700;}
+.hm-bar{height:5px;border-radius:3px;background:var(--bg-inner);margin-top:5px;overflow:hidden;}
+.hm-bar-fill{height:100%;border-radius:3px;transition:width .6s ease,background .3s ease;}
+
+/* waveform ribbon (signature del CFW-11) */
+.wave-strip{height:26px;margin:2px 0 12px;position:relative;overflow:hidden;border-radius:4px;background:var(--bg-inner);border:1px solid var(--border);}
+.wave-strip svg{width:200%;height:100%;}
+.wave-strip path{fill:none;stroke:var(--b1);stroke-width:1.6;opacity:.75;}
+.wave-strip.running svg{animation:waveScroll linear infinite;}
+.wave-strip.stopped path{opacity:.15;}
+@keyframes waveScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* ramp arc (signature del SSW) */
+.ramp-strip{height:26px;margin:2px 0 12px;border-radius:4px;background:var(--bg-inner);border:1px solid var(--border);position:relative;overflow:hidden;padding:0 8px;display:flex;align-items:center;}
+.ramp-strip svg{width:100%;height:16px;}
+.ramp-strip path{fill:none;stroke:var(--b2);stroke-width:1.8;opacity:.85;}
+.ramp-strip.stopped path{opacity:.15;}
+
+/* ── status sections ── */
+.status-section{background:var(--bg-inner);border:1px solid var(--border);border-radius:9px;padding:8px 12px;margin-bottom:8px;}
+.status-section:last-child{margin-bottom:0;}
+.ss-title{font-family:'Roboto Mono',monospace;font-size:.58rem;letter-spacing:2px;color:var(--text-3);text-transform:uppercase;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--border);}
+.srow{display:flex;justify-content:space-between;align-items:center;padding:3px 0;}
+.srow+.srow{border-top:1px solid rgba(28,39,51,.6);}
+.srow-label{font-size:.78rem;color:var(--text-2);}
+.srow-value{font-family:'Roboto Mono',monospace;font-size:.78rem;color:var(--text-1);}
+.srow-value.b1{color:var(--b1);font-weight:600;}
+.srow-value.b2{color:var(--b2);font-weight:600;}
+.srow-value.green{color:var(--green);font-weight:600;}
+.srow-value.red{color:var(--red);font-weight:700;animation:pulseTxt .9s infinite alternate;}
+.srow-value.yellow{color:var(--yellow);font-weight:600;}
+.srow-value.gray{color:var(--gray);}
+@keyframes pulseTxt{0%{opacity:.55}100%{opacity:1}}
+.skel{display:inline-block;width:46px;height:9px;border-radius:3px;background:linear-gradient(90deg,var(--border),var(--border-lt),var(--border));background-size:200% 100%;animation:skel 1.2s infinite;}
+@keyframes skel{0%{background-position:200%}100%{background-position:-200%}}
+
+/* ═══ CHART ═══ */
+.chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;}
+.chart-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+.chart-title{font-family:'Orbitron',sans-serif;font-size:.82rem;font-weight:700;letter-spacing:.5px;}
+.chart-range{font-family:'Roboto Mono',monospace;font-size:.62rem;color:var(--text-2);}
+.chart-box{height:320px;position:relative;}
+
+/* ═══ FAULT LOG ═══ */
+.log-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:18px;}
+.log-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;}
+.log-title{font-family:'Orbitron',sans-serif;font-size:.82rem;font-weight:700;letter-spacing:.5px;}
+.log-counts{display:flex;gap:10px;flex-wrap:wrap;}
+.count-chip{font-family:'Roboto Mono',monospace;font-size:.64rem;padding:4px 10px;border-radius:14px;background:var(--bg-inner);border:1px solid var(--border);}
+.count-chip.b1{color:var(--b1);border-color:rgba(0,212,255,.3);}
+.count-chip.b2{color:var(--b2);border-color:rgba(255,171,46,.3);}
+
+.log-table-wrap{overflow-x:auto;}
+table.log-table{width:100%;border-collapse:collapse;font-family:'Roboto Mono',monospace;font-size:.74rem;min-width:560px;}
+table.log-table th{
+    text-align:left;color:var(--text-3);font-weight:600;letter-spacing:1px;text-transform:uppercase;font-size:.6rem;
+    padding:8px 10px;border-bottom:1px solid var(--border-lt);
+}
+table.log-table td{padding:9px 10px;border-bottom:1px solid var(--border);color:var(--text-1);}
+table.log-table tr:last-child td{border-bottom:none;}
+.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.65rem;font-weight:700;}
+.tag.b1{background:var(--b1-dim);color:var(--b1);}
+.tag.b2{background:var(--b2-dim);color:var(--b2);}
+.tag.activa{background:rgba(255,59,92,.14);color:var(--red);}
+.log-empty{padding:26px 10px;text-align:center;color:var(--text-3);font-family:'Roboto Mono',monospace;font-size:.72rem;}
+
+footer{text-align:center;padding:22px 12px 10px;font-family:'Roboto Mono',monospace;font-size:.62rem;color:var(--text-3);letter-spacing:1px;}
+footer span{color:var(--b1);}
+
+@media(max-width:640px){
+    .hdr-sub, .hdr-clock{display:none;}
+    .hero-readout{flex-direction:column;align-items:flex-start;}
+    .gauge-wrap{margin:0 auto;}
+}
+</style>
+</head>
+<body>
+
+<header>
+    <div class="hdr-brand">
+        <div class="hdr-mark">
+            <svg viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5Zm0 8L2 15l10 5 10-5-10-5Z"/></svg>
+        </div>
+        <div>
+            <div class="hdr-title">AQUA SCADA</div>
+            <div class="hdr-sub">BOMBA 1 · CFW-11 &nbsp;|&nbsp; BOMBA 2 · SSW</div>
+        </div>
+    </div>
+    <div class="hdr-right">
+        <div class="conn-pill" id="rpi-pill" style="display:none;">
+            <svg viewBox="0 0 24 24" width="12" height="12" style="fill:var(--text-2);flex-shrink:0;"><path d="M12 2a1 1 0 0 1 1 1v1.07A8.99 8.99 0 0 1 20.93 12H22a1 1 0 1 1 0 2h-1.07A8.99 8.99 0 0 1 13 20.93V22a1 1 0 1 1-2 0v-1.07A8.99 8.99 0 0 1 3.07 14H2a1 1 0 1 1 0-2h1.07A8.99 8.99 0 0 1 11 4.07V3a1 1 0 0 1 1-1Zm0 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z"/></svg>
+            <span>RPi: <span id="rpi-temp-val">— °C</span></span>
+        </div>
+        <div class="conn-pill"><span class="conn-dot" id="conn-dot"></span><span id="conn-text">CONECTANDO…</span></div>
+        <div class="hdr-clock" id="hdr-clock">--:--:--</div>
+    </div>
+</header>
+
+<main>
+    <div class="influx-error" id="influx-error">⚠ No se pudo conectar con InfluxDB. Verificá la configuración (URL / token / org / bucket) al inicio del script.</div>
+
+    <div class="section-label">Estado en vivo</div>
+    <div class="pumps-row">
+
+        <!-- ═══════════ BOMBA 1 · CFW-11 ═══════════ -->
+        <div class="pump-card b1">
+            <div class="pc-head">
+                <div>
+                    <div class="pc-id">ESTACIÓN 01</div>
+                    <div class="pc-name">BOMBA 1</div>
+                    <div class="pc-equip">Variador CFW-11</div>
+                </div>
+                <div class="pc-updated">Actualizado<br><span id="b1-updated">—</span></div>
+            </div>
+
+            <div class="status-pill detenida" id="b1-pill">
+                <span class="status-dot"></span><span id="b1-pill-txt">CARGANDO…</span>
+            </div>
+
+            <div class="hero-readout">
+                <div class="gauge-wrap">
+                    <svg viewBox="0 0 120 120">
+                        <circle class="gauge-bg" cx="60" cy="60" r="50"/>
+                        <circle class="gauge-fg" id="b1-gauge" cx="60" cy="60" r="50"
+                                stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+                    </svg>
+                    <div class="gauge-center">
+                        <div class="gauge-val" id="b1-freq-val">—</div>
+                        <div class="gauge-unit">Hz</div>
+                    </div>
+                </div>
+                <div class="hero-side">
+                    <div class="hero-metric">
+                        <div class="hm-label">Corriente de salida</div>
+                        <div class="hm-val" id="b1-corr-val">— A</div>
+                        <div class="hm-bar"><div class="hm-bar-fill" id="b1-corr-bar" style="width:0%;background:var(--b1);"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="wave-strip stopped" id="b1-wave-strip">
+                <svg viewBox="0 0 400 26" preserveAspectRatio="none" id="b1-wave-svg">
+                    <path id="b1-wave-path-a" d="M0,13 L400,13"/>
+                    <path id="b1-wave-path-b" d="M400,13 L800,13" transform="translate(400,0)"/>
+                </svg>
+            </div>
+
+            <div class="status-section">
+                <div class="ss-title">Estado operativo</div>
+                <div class="srow"><span class="srow-label">Falla actual</span><span class="srow-value" id="b1-falla-act"><span class="skel"></span></span></div>
+                <div class="srow"><span class="srow-label">Falla anterior</span><span class="srow-value" id="b1-falla-ant"><span class="skel"></span></span></div>
+                <div class="srow" id="b1-row-temp" style="display:none;"><span class="srow-label">Temp. disipador</span><span class="srow-value b1" id="b1-temp">—</span></div>
+            </div>
+
+            <div class="status-section" id="b1-sec-variador" style="display:none;">
+                <div class="ss-title">Salida del variador</div>
+                <div class="srow" id="b1-row-ref" style="display:none;"><span class="srow-label">Referencia de frecuencia</span><span class="srow-value b1" id="b1-ref">—</span></div>
+                <div class="srow" id="b1-row-vsal" style="display:none;"><span class="srow-label">Tensión de salida</span><span class="srow-value b1" id="b1-vsal">—</span></div>
+                <div class="srow" id="b1-row-tbus" style="display:none;"><span class="srow-label">Tensión bus CC</span><span class="srow-value b1" id="b1-tbus">—</span></div>
+                <div class="srow" id="b1-row-pct" style="display:none;"><span class="srow-label">Corriente / nominal</span><span class="srow-value b1" id="b1-pct">—</span></div>
+            </div>
+
+            <div class="status-section" id="b1-sec-alim" style="display:none;">
+                <div class="ss-title">Alimentación eléctrica (V)</div>
+                <div class="srow" id="b1-row-v1" style="display:none;"><span class="srow-label">Tensión L1</span><span class="srow-value b1" id="b1-v1">—</span></div>
+                <div class="srow" id="b1-row-v2" style="display:none;"><span class="srow-label">Tensión L2</span><span class="srow-value b1" id="b1-v2">—</span></div>
+                <div class="srow" id="b1-row-v3" style="display:none;"><span class="srow-label">Tensión L3</span><span class="srow-value b1" id="b1-v3">—</span></div>
+            </div>
+
+            <div class="status-section" id="b1-sec-consumo" style="display:none;">
+                <div class="ss-title">Consumo (A)</div>
+                <div class="srow" id="b1-row-i1" style="display:none;"><span class="srow-label">Corriente L1</span><span class="srow-value b1" id="b1-i1">—</span></div>
+                <div class="srow" id="b1-row-i2" style="display:none;"><span class="srow-label">Corriente L2</span><span class="srow-value b1" id="b1-i2">—</span></div>
+                <div class="srow" id="b1-row-i3" style="display:none;"><span class="srow-label">Corriente L3</span><span class="srow-value b1" id="b1-i3">—</span></div>
+                <div class="srow" id="b1-row-iavg" style="display:none;"><span class="srow-label">Corriente promedio</span><span class="srow-value b1" id="b1-iavg">—</span></div>
+            </div>
+
+            <div class="status-section" id="b1-sec-func" style="display:none;">
+                <div class="ss-title">Funcionamiento</div>
+                <div class="srow" id="b1-row-horas" style="display:none;"><span class="srow-label">Horas Func. (Acumulado)</span><span class="srow-value b1" id="b1-horas">—</span></div>
+            </div>
+        </div>
+
+        <!-- ═══════════ BOMBA 2 · SSW ═══════════ -->
+        <div class="pump-card b2">
+            <div class="pc-head">
+                <div>
+                    <div class="pc-id">ESTACIÓN 02</div>
+                    <div class="pc-name">BOMBA 2</div>
+                    <div class="pc-equip">Arrancador suave SSW</div>
+                </div>
+                <div class="pc-updated">Actualizado<br><span id="b2-updated">—</span></div>
+            </div>
+
+            <div class="status-pill detenida" id="b2-pill">
+                <span class="status-dot"></span><span id="b2-pill-txt">CARGANDO…</span>
+            </div>
+
+            <div class="hero-readout">
+                <div class="gauge-wrap">
+                    <svg viewBox="0 0 120 120">
+                        <circle class="gauge-bg" cx="60" cy="60" r="50"/>
+                        <circle class="gauge-fg" id="b2-gauge" cx="60" cy="60" r="50"
+                                stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+                    </svg>
+                    <div class="gauge-center">
+                        <div class="gauge-val" id="b2-corr-val">—</div>
+                        <div class="gauge-unit">A</div>
+                    </div>
+                </div>
+                <div class="hero-side">
+                    <div class="hero-metric">
+                        <div class="hm-label">Corriente respecto a nominal</div>
+                        <div class="hm-val" id="b2-corr-pct">— %</div>
+                        <div class="hm-bar"><div class="hm-bar-fill" id="b2-corr-bar" style="width:0%;background:var(--b2);"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ramp-strip stopped" id="b2-ramp-strip">
+                <svg viewBox="0 0 300 16" preserveAspectRatio="none">
+                    <path d="M0,14 C 60,14 90,2 150,2 C 210,2 240,14 300,14"/>
+                </svg>
+            </div>
+
+            <div class="status-section">
+                <div class="ss-title">Estado operativo</div>
+                <div class="srow"><span class="srow-label">Falla actual</span><span class="srow-value" id="b2-falla-act"><span class="skel"></span></span></div>
+                <div class="srow"><span class="srow-label">Falla anterior</span><span class="srow-value" id="b2-falla-ant"><span class="skel"></span></span></div>
+                <div class="srow" id="b2-row-temp" style="display:none;"><span class="srow-label">Temp. disipador</span><span class="srow-value b2" id="b2-temp">—</span></div>
+            </div>
+
+            <div class="status-section" id="b2-sec-parametros" style="display:none;">
+                <div class="ss-title">Parámetros de arranque</div>
+                <div class="srow" id="b2-row-vini" style="display:none;"><span class="srow-label">Tensión inicial</span><span class="srow-value b2" id="b2-vini">—</span></div>
+                <div class="srow" id="b2-row-rampaAc" style="display:none;"><span class="srow-label">Rampa aceleración</span><span class="srow-value b2" id="b2-rampaAc">—</span></div>
+                <div class="srow" id="b2-row-rampaDe" style="display:none;"><span class="srow-label">Rampa desaceleración</span><span class="srow-value b2" id="b2-rampaDe">—</span></div>
+            </div>
+
+            <div class="status-section" id="b2-sec-alim" style="display:none;">
+                <div class="ss-title">Alimentación eléctrica (V)</div>
+                <div class="srow" id="b2-row-v1" style="display:none;"><span class="srow-label">Tensión L1</span><span class="srow-value b2" id="b2-v1">—</span></div>
+                <div class="srow" id="b2-row-v2" style="display:none;"><span class="srow-label">Tensión L2</span><span class="srow-value b2" id="b2-v2">—</span></div>
+                <div class="srow" id="b2-row-v3" style="display:none;"><span class="srow-label">Tensión L3</span><span class="srow-value b2" id="b2-v3">—</span></div>
+            </div>
+
+            <div class="status-section" id="b2-sec-consumo" style="display:none;">
+                <div class="ss-title">Consumo (A)</div>
+                <div class="srow" id="b2-row-i1" style="display:none;"><span class="srow-label">Corriente L1</span><span class="srow-value b2" id="b2-i1">—</span></div>
+                <div class="srow" id="b2-row-i2" style="display:none;"><span class="srow-label">Corriente L2</span><span class="srow-value b2" id="b2-i2">—</span></div>
+                <div class="srow" id="b2-row-i3" style="display:none;"><span class="srow-label">Corriente L3</span><span class="srow-value b2" id="b2-i3">—</span></div>
+                <div class="srow" id="b2-row-iavg" style="display:none;"><span class="srow-label">Corriente promedio</span><span class="srow-value b2" id="b2-iavg">—</span></div>
+            </div>
+
+            <div class="status-section" id="b2-sec-func" style="display:none;">
+                <div class="ss-title">Funcionamiento</div>
+                <div class="srow" id="b2-row-horas" style="display:none;"><span class="srow-label">Horas Func. (Acumulado)</span><span class="srow-value b2" id="b2-horas">—</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-label">Histórico · últimas 72 horas</div>
+    <div class="chart-card">
+        <div class="chart-head">
+            <div class="chart-title">Frecuencia y corriente</div>
+            <div class="chart-range" id="chart-range-txt">—</div>
+        </div>
+        <div class="chart-box"><canvas id="chart-historico"></canvas></div>
+    </div>
+
+    <div class="section-label">Registro de fallas · últimas 72 horas</div>
+    <div class="log-card">
+        <div class="log-head">
+            <div class="log-title">Historial de eventos de falla</div>
+            <div class="log-counts">
+                <span class="count-chip b1" id="count-b1">Bomba 1: —</span>
+                <span class="count-chip b2" id="count-b2">Bomba 2: —</span>
+            </div>
+        </div>
+        <div class="log-table-wrap">
+            <table class="log-table">
+                <thead>
+                    <tr><th>Bomba</th><th>Código</th><th>Inicio</th><th>Fin</th><th>Duración</th></tr>
+                </thead>
+                <tbody id="log-tbody">
+                    <tr><td colspan="5" class="log-empty">Cargando registro…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<footer>MONITOREO DE BOMBEO &nbsp;·&nbsp; datos vía <span>InfluxDB Cloud</span> &nbsp;·&nbsp; actualiza cada <span id="foot-poll">5</span>s</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script>
+/* ══════════════════════════════════════════════════════════════
+   ⚙  CONFIGURACIÓN — EDITAR ESTO ANTES DE PUBLICAR
+   ══════════════════════════════════════════════════════════════
+
+   Este archivo se conecta DIRECTO a InfluxDB Cloud desde el navegador
+   (igual que hace tu script .py al escribir los datos). Como este
+   HTML va a quedar público en GitHub, usá acá un token de InfluxDB
+   con permiso SOLO LECTURA (Read) sobre el bucket, nunca el token
+   de escritura que usa tu script .py. Se genera en:
+   InfluxDB Cloud → Load Data → API Tokens → Generate Token → Read Only.
+*/
+const CONFIG = {
+    influx: {
+        url:    'https://us-east-1-1.aws.cloud2.influxdata.com', // tu URL de InfluxDB Cloud
+        token:  'PEGA_ACA_TU_TOKEN_DE_SOLO_LECTURA',
+        org:    'TU_ORGANIZACION',
+        bucket: 'bombeo_agua'
+    },
+    measurement: 'monitoreo_bombas', // measurement donde tu script .py escribe los datos
+    pollMs: 5000,                    // frecuencia de refresco del estado en vivo (ms)
+    chartRefreshMs: 5 * 60 * 1000,   // frecuencia de refresco del gráfico histórico (ms)
+
+    // ── Sistema (Raspberry Pi) ──
+    sistema: {
+        campoTempRaspberry: 'rpi_cpu_temp' // opcional · °C · si tu .py no la manda, el pill del header no se muestra
+    },
+
+    // ── Bomba 1 · CFW-11 (variador) ──
+    // Cambiá estos nombres de campo por los que usa tu script .py en InfluxDB.
+    // Los que dicen "opcional" podés dejarlos como están o borrarlos (poné '')
+    // si ese dato no existe — la fila correspondiente simplemente no se muestra.
+    bomba1: {
+        campoMarcha:            'B1_marcha',                // 0 / 1
+        campoFrecuencia:        'B1_frecuencia',             // Hz (dato principal)
+        campoCorriente:         'B1_corriente',              // A · corriente de salida (dato principal)
+        campoFallaActual:       'B1_codigo_falla',           // 0 = sin falla
+        campoFallaAnterior:     'B1_codigo_falla_anterior',  // opcional
+        campoReferencia:        'B1_referencia_frecuencia',  // opcional · Hz de referencia/setpoint
+        campoTensionSalida:     'B1_tension_salida',         // opcional · V
+        campoTensionBus:        'B1_tension_bus_cc',         // opcional · Vcc
+        campoCorrienteL1:       'B1_corriente_l1',           // opcional · A
+        campoCorrienteL2:       'B1_corriente_l2',           // opcional · A
+        campoCorrienteL3:       'B1_corriente_l3',           // opcional · A
+        campoCorrientePromedio: 'B1_corriente_promedio',     // opcional · A
+        campoCorrientePorcentaje: 'B1_corriente_porcentaje', // opcional · % de la nominal
+        campoTensionL1:         'B1_tension_l1',             // opcional · V de red/alimentación
+        campoTensionL2:         'B1_tension_l2',             // opcional · V
+        campoTensionL3:         'B1_tension_l3',             // opcional · V
+        campoTemperatura:       'B1_temperatura',            // opcional · °C disipador
+        campoHoras:             'B1_horas_funcionamiento',   // opcional · h
+        frecuenciaMax: 60,     // Hz, tope del gauge circular
+        corrienteNominal: 15,  // A, para la barra/porcentaje de corriente (ajustar según motor)
+        // Si esta bomba NO tiene una señal digital de marcha (relé inteligente),
+        // dejá campoMarcha en '' (vacío) y el estado se infiere automáticamente:
+        // "en marcha" si la corriente supera este umbral (A).
+        umbralMarchaA: 1.0
+    },
+
+    // ── Bomba 2 · SSW (arrancador suave) ──
+    bomba2: {
+        campoMarcha:              'B2_marcha',
+        campoCorriente:           'B2_corriente',              // A · corriente principal (dato principal)
+        campoFallaActual:         'B2_codigo_falla',
+        campoFallaAnterior:       'B2_codigo_falla_anterior',  // opcional
+        campoTensionInicial:      'B2_tension_inicial',        // opcional · % Un
+        campoRampaAceleracion:    'B2_rampa_aceleracion',      // opcional · s
+        campoRampaDesaceleracion: 'B2_rampa_desaceleracion',   // opcional · s
+        campoCorrienteL1:         'B2_corriente_l1',           // opcional · A
+        campoCorrienteL2:         'B2_corriente_l2',           // opcional · A
+        campoCorrienteL3:         'B2_corriente_l3',           // opcional · A
+        campoCorrientePromedio:   'B2_corriente_promedio',     // opcional · A
+        campoTensionL1:           'B2_tension_l1',             // opcional · V
+        campoTensionL2:           'B2_tension_l2',             // opcional · V
+        campoTensionL3:           'B2_tension_l3',             // opcional · V
+        campoTemperatura:         'B2_temperatura',            // opcional · °C disipador
+        campoHoras:               'B2_horas_funcionamiento',   // opcional · h
+        corrienteNominal: 15, // A
+        // Igual que en Bomba 1: si esta bomba no tiene relé inteligente,
+        // dejá campoMarcha en '' y el estado se infiere por corriente.
+        umbralMarchaA: 1.0
+    },
+
+    // Mapeo opcional de código de falla → descripción. Completalo con los
+    // códigos reales del manual de tu CFW-11 / SSW si querés texto en vez de "Ex".
+    // Ejemplo: { 1: 'Sobrecorriente', 3: 'Sobretemperatura' }
+    descripcionesFalla: { }
+};
+/* ════════════════════════════════════════════════════════════ */
+
+// ── Reloj ──────────────────────────────────────────────
+function updateClock(){
+    const n = new Date(), p = v => String(v).padStart(2,'0');
+    document.getElementById('hdr-clock').textContent = `${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+}
+updateClock(); setInterval(updateClock, 1000);
+document.getElementById('foot-poll').textContent = Math.round(CONFIG.pollMs/1000);
+
+// ── Helpers UI ─────────────────────────────────────────
+function set(id, val){ const e = document.getElementById(id); if(e) e.textContent = val; }
+function showRow(rowId, valId, val, cls){
+    const row = document.getElementById(rowId);
+    if(val === null || val === undefined){ if(row) row.style.display = 'none'; return; }
+    if(row) row.style.display = 'flex';
+    set(valId, val);
+    if(cls){ const v = document.getElementById(valId); if(v) v.className = 'srow-value ' + cls; }
+}
+function fmtTime(d){
+    return d.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+function fmtFalla(val){
+    if(val === null || val === undefined) return null;
+    const n = parseInt(val);
+    if(isNaN(n) || n === 0) return { txt: 'SIN FALLA', cls: 'green', code: 0 };
+    const desc = CONFIG.descripcionesFalla[n];
+    return { txt: desc ? `E${String(n).padStart(2,'0')} · ${desc}` : `E${String(n).padStart(2,'0')}`, cls: 'red', code: n };
+}
+function setGauge(gaugeId, pct){
+    const circ = 314.16;
+    const clamped = Math.max(0, Math.min(1, pct));
+    const g = document.getElementById(gaugeId);
+    if(g) g.setAttribute('stroke-dashoffset', String(circ * (1 - clamped)));
+}
+function setPill(pillId, txtId, state, label){
+    const pill = document.getElementById(pillId);
+    if(pill) pill.className = 'status-pill ' + state;
+    set(txtId, label);
+}
+
+// ── Flux client ────────────────────────────────────────
+async function fluxQuery(query){
+    const resp = await fetch(`${CONFIG.influx.url}/api/v2/query?org=${encodeURIComponent(CONFIG.influx.org)}`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Token ${CONFIG.influx.token}`,
+            'Content-Type': 'application/vnd.flux',
+            'Accept': 'application/csv'
+        },
+        body: query
+    });
+    if(!resp.ok) throw new Error(`InfluxDB HTTP ${resp.status}`);
+    return resp.text();
+}
+
+async function fluxLast(field){
+    if(!field) return null;
+    const text = await fluxQuery(
+        `from(bucket:"${CONFIG.influx.bucket}")` +
+        `|> range(start:-2h)` +
+        `|> filter(fn:(r)=>r._measurement=="${CONFIG.measurement}" and r._field=="${field}")` +
+        `|> last()` +
+        `|> keep(columns:["_value"])`
+    );
+    const lines = text.trim().split('\n').filter(l => l && !l.startsWith('#') && !l.startsWith(',result'));
+    if(!lines.length) return null;
+    const cols = lines[lines.length - 1].split(',');
+    const v = cols[cols.length - 1].trim();
+    return v === '' ? null : v;
+}
+
+// ── Estado en vivo ───────────────────────────────────────
+let _wavePhase = false;
+
+function showSection(secId, anyVisible){ const s = document.getElementById(secId); if(s) s.style.display = anyVisible ? 'block' : 'none'; }
+
+// Determina si la bomba está en marcha. Si hay señal digital de marcha, se usa
+// esa. Si no (campo vacío/nulo -> bomba sin relé inteligente), se infiere por
+// corriente: en marcha si supera el umbral configurado.
+function resolveMarcha(marchaRaw, corrienteVal, umbralA){
+    if(marchaRaw === '1' || marchaRaw === 1 || marchaRaw === 'true') return true;
+    if(marchaRaw === '0' || marchaRaw === 0 || marchaRaw === 'false') return false;
+    if(corrienteVal !== null && !isNaN(corrienteVal)) return corrienteVal > (umbralA ?? 1.0);
+    return false;
+}
+
+async function fetchLive(){
+    try{
+        const c1 = CONFIG.bomba1, c2 = CONFIG.bomba2;
+        const [
+            b1marcha, b1freq, b1corr, b1fAct, b1fAnt, b1ref, b1vsal, b1tbus, b1temp, b1horas,
+            b1i1, b1i2, b1i3, b1iavg, b1pct, b1v1, b1v2, b1v3,
+            b2marcha, b2corr, b2fAct, b2fAnt, b2temp, b2horas,
+            b2vini, b2rampaAc, b2rampaDe,
+            b2i1, b2i2, b2i3, b2iavg, b2v1, b2v2, b2v3, rpiTemp
+        ] = await Promise.all([
+            fluxLast(c1.campoMarcha), fluxLast(c1.campoFrecuencia), fluxLast(c1.campoCorriente),
+            fluxLast(c1.campoFallaActual), fluxLast(c1.campoFallaAnterior), fluxLast(c1.campoReferencia),
+            fluxLast(c1.campoTensionSalida), fluxLast(c1.campoTensionBus), fluxLast(c1.campoTemperatura), fluxLast(c1.campoHoras),
+            fluxLast(c1.campoCorrienteL1), fluxLast(c1.campoCorrienteL2), fluxLast(c1.campoCorrienteL3),
+            fluxLast(c1.campoCorrientePromedio), fluxLast(c1.campoCorrientePorcentaje),
+            fluxLast(c1.campoTensionL1), fluxLast(c1.campoTensionL2), fluxLast(c1.campoTensionL3),
+            fluxLast(c2.campoMarcha), fluxLast(c2.campoCorriente),
+            fluxLast(c2.campoFallaActual), fluxLast(c2.campoFallaAnterior),
+            fluxLast(c2.campoTemperatura), fluxLast(c2.campoHoras),
+            fluxLast(c2.campoTensionInicial), fluxLast(c2.campoRampaAceleracion), fluxLast(c2.campoRampaDesaceleracion),
+            fluxLast(c2.campoCorrienteL1), fluxLast(c2.campoCorrienteL2), fluxLast(c2.campoCorrienteL3),
+            fluxLast(c2.campoCorrientePromedio),
+            fluxLast(c2.campoTensionL1), fluxLast(c2.campoTensionL2), fluxLast(c2.campoTensionL3),
+            fluxLast(CONFIG.sistema.campoTempRaspberry)
+        ]);
+
+        document.getElementById('influx-error').style.display = 'none';
+        document.getElementById('conn-dot').className = 'conn-dot';
+        document.getElementById('conn-text').textContent = 'EN LÍNEA';
+
+        if(rpiTemp !== null){
+            const t = parseFloat(rpiTemp);
+            document.getElementById('rpi-pill').style.display = 'flex';
+            const el = document.getElementById('rpi-temp-val');
+            el.textContent = `${t.toFixed(1)} °C`;
+            el.style.color = t >= 75 ? 'var(--red)' : t >= 60 ? 'var(--yellow)' : 'var(--text-1)';
+        }
+
+        const now = new Date();
+        set('b1-updated', fmtTime(now));
+        set('b2-updated', fmtTime(now));
+
+        // ── BOMBA 1 · CFW-11 ──
+        const b1FallaObj = fmtFalla(b1fAct);
+        const b1ConFalla = b1FallaObj && b1FallaObj.code !== 0;
+        const corr1Val = b1corr !== null ? parseFloat(b1corr) : null;
+        const b1CorrRef = corr1Val !== null ? corr1Val : (b1iavg !== null ? parseFloat(b1iavg) : null);
+        const b1Marcha = resolveMarcha(b1marcha, b1CorrRef, c1.umbralMarchaA);
+
+        let st1 = 'detenida', label1 = 'DETENIDA';
+        if(b1ConFalla){ st1 = 'falla'; label1 = 'CON FALLA'; }
+        else if(b1Marcha){ st1 = 'marcha'; label1 = 'EN MARCHA'; }
+        setPill('b1-pill', 'b1-pill-txt', st1, label1);
+
+        const freqVal = b1freq !== null ? parseFloat(b1freq) : null;
+        set('b1-freq-val', freqVal !== null ? freqVal.toFixed(1) : '—');
+        setGauge('b1-gauge', freqVal !== null ? freqVal / (c1.frecuenciaMax || 60) : 0);
+
+        set('b1-corr-val', corr1Val !== null ? `${corr1Val.toFixed(1)} A` : '— A');
+        const corr1Pct = corr1Val !== null ? Math.min(100, (corr1Val / (c1.corrienteNominal || 15)) * 100) : 0;
+        const corr1Bar = document.getElementById('b1-corr-bar');
+        corr1Bar.style.width = corr1Pct + '%';
+        corr1Bar.style.background = corr1Pct > 100 ? 'var(--red)' : corr1Pct > 85 ? 'var(--yellow)' : 'var(--b1)';
+
+        const waveStrip = document.getElementById('b1-wave-strip');
+        if(b1Marcha && freqVal){
+            waveStrip.className = 'wave-strip running';
+            const period = Math.max(0.25, 3 - Math.min(freqVal, 60) / 24); // más Hz → animación más rápida
+            waveStrip.style.animationDuration = '';
+            document.getElementById('b1-wave-svg').style.animationDuration = period + 's';
+            waveStrip.querySelector('svg').style.animation = `waveScroll ${period}s linear infinite`;
+            const cycles = Math.max(3, Math.min(14, Math.round(freqVal / 4)));
+            document.getElementById('b1-wave-path-a').setAttribute('d', buildWave(0, cycles));
+            document.getElementById('b1-wave-path-b').setAttribute('d', buildWave(400, cycles));
+        } else {
+            waveStrip.className = 'wave-strip stopped';
+        }
+
+        if(b1FallaObj){ set('b1-falla-act', b1FallaObj.txt); document.getElementById('b1-falla-act').className = 'srow-value ' + b1FallaObj.cls; }
+        else { set('b1-falla-act', '—'); }
+        const b1FallaAntObj = fmtFalla(b1fAnt);
+        if(b1FallaAntObj){ set('b1-falla-ant', b1FallaAntObj.txt); document.getElementById('b1-falla-ant').className = 'srow-value ' + (b1FallaAntObj.code !== 0 ? 'yellow' : 'gray'); }
+        else { set('b1-falla-ant', '—'); }
+
+        showRow('b1-row-temp',  'b1-temp',  b1temp !== null ? `${parseFloat(b1temp).toFixed(1)} °C` : null);
+
+        showRow('b1-row-ref',  'b1-ref',  b1ref  !== null ? `${parseFloat(b1ref).toFixed(1)} Hz` : null);
+        showRow('b1-row-vsal', 'b1-vsal', b1vsal !== null ? `${parseFloat(b1vsal).toFixed(0)} V` : null);
+        showRow('b1-row-tbus', 'b1-tbus', b1tbus !== null ? `${parseFloat(b1tbus).toFixed(0)} V` : null);
+        showRow('b1-row-pct',  'b1-pct',  b1pct  !== null ? `${parseFloat(b1pct).toFixed(1)} %` : null);
+        showSection('b1-sec-variador', [b1ref,b1vsal,b1tbus,b1pct].some(v => v !== null));
+
+        showRow('b1-row-v1', 'b1-v1', b1v1 !== null ? `${parseFloat(b1v1).toFixed(0)} V` : null);
+        showRow('b1-row-v2', 'b1-v2', b1v2 !== null ? `${parseFloat(b1v2).toFixed(0)} V` : null);
+        showRow('b1-row-v3', 'b1-v3', b1v3 !== null ? `${parseFloat(b1v3).toFixed(0)} V` : null);
+        showSection('b1-sec-alim', [b1v1,b1v2,b1v3].some(v => v !== null));
+
+        showRow('b1-row-i1',   'b1-i1',   b1i1   !== null ? `${parseFloat(b1i1).toFixed(1)} A` : null);
+        showRow('b1-row-i2',   'b1-i2',   b1i2   !== null ? `${parseFloat(b1i2).toFixed(1)} A` : null);
+        showRow('b1-row-i3',   'b1-i3',   b1i3   !== null ? `${parseFloat(b1i3).toFixed(1)} A` : null);
+        showRow('b1-row-iavg', 'b1-iavg', b1iavg !== null ? `${parseFloat(b1iavg).toFixed(1)} A` : null);
+        showSection('b1-sec-consumo', [b1i1,b1i2,b1i3,b1iavg].some(v => v !== null));
+
+        showRow('b1-row-horas', 'b1-horas', b1horas !== null ? `${parseFloat(b1horas).toFixed(1)} h` : null);
+        showSection('b1-sec-func', b1horas !== null);
+
+        // ── BOMBA 2 · SSW ──
+        const b2FallaObj = fmtFalla(b2fAct);
+        const b2ConFalla = b2FallaObj && b2FallaObj.code !== 0;
+        const corr2Val = b2corr !== null ? parseFloat(b2corr) : null;
+        const b2CorrRef = corr2Val !== null ? corr2Val : (b2iavg !== null ? parseFloat(b2iavg) : null);
+        const b2Marcha = resolveMarcha(b2marcha, b2CorrRef, c2.umbralMarchaA);
+
+        let st2 = 'detenida', label2 = 'DETENIDA';
+        if(b2ConFalla){ st2 = 'falla'; label2 = 'CON FALLA'; }
+        else if(b2Marcha){ st2 = 'marcha'; label2 = 'EN MARCHA'; }
+        setPill('b2-pill', 'b2-pill-txt', st2, label2);
+
+        set('b2-corr-val', corr2Val !== null ? corr2Val.toFixed(1) : '—');
+        setGauge('b2-gauge', corr2Val !== null ? corr2Val / (c2.corrienteNominal || 15) : 0);
+        const corr2Pct = corr2Val !== null ? Math.min(999, (corr2Val / (c2.corrienteNominal || 15)) * 100) : 0;
+        set('b2-corr-pct', corr2Val !== null ? `${corr2Pct.toFixed(0)} %` : '— %');
+        const corr2Bar = document.getElementById('b2-corr-bar');
+        corr2Bar.style.width = Math.min(100, corr2Pct) + '%';
+        corr2Bar.style.background = corr2Pct > 100 ? 'var(--red)' : corr2Pct > 85 ? 'var(--yellow)' : 'var(--b2)';
+
+        document.getElementById('b2-ramp-strip').className = 'ramp-strip ' + (b2Marcha ? 'running' : 'stopped');
+
+        if(b2FallaObj){ set('b2-falla-act', b2FallaObj.txt); document.getElementById('b2-falla-act').className = 'srow-value ' + b2FallaObj.cls; }
+        else { set('b2-falla-act', '—'); }
+        const b2FallaAntObj = fmtFalla(b2fAnt);
+        if(b2FallaAntObj){ set('b2-falla-ant', b2FallaAntObj.txt); document.getElementById('b2-falla-ant').className = 'srow-value ' + (b2FallaAntObj.code !== 0 ? 'yellow' : 'gray'); }
+        else { set('b2-falla-ant', '—'); }
+
+        showRow('b2-row-temp', 'b2-temp', b2temp !== null ? `${parseFloat(b2temp).toFixed(1)} °C` : null);
+
+        showRow('b2-row-vini',    'b2-vini',    b2vini    !== null ? `${parseFloat(b2vini).toFixed(0)} % Un` : null);
+        showRow('b2-row-rampaAc', 'b2-rampaAc', b2rampaAc !== null ? `${parseFloat(b2rampaAc).toFixed(1)} s` : null);
+        showRow('b2-row-rampaDe', 'b2-rampaDe', b2rampaDe !== null ? `${parseFloat(b2rampaDe).toFixed(1)} s` : null);
+        showSection('b2-sec-parametros', [b2vini,b2rampaAc,b2rampaDe].some(v => v !== null));
+
+        showRow('b2-row-v1', 'b2-v1', b2v1 !== null ? `${parseFloat(b2v1).toFixed(0)} V` : null);
+        showRow('b2-row-v2', 'b2-v2', b2v2 !== null ? `${parseFloat(b2v2).toFixed(0)} V` : null);
+        showRow('b2-row-v3', 'b2-v3', b2v3 !== null ? `${parseFloat(b2v3).toFixed(0)} V` : null);
+        showSection('b2-sec-alim', [b2v1,b2v2,b2v3].some(v => v !== null));
+
+        showRow('b2-row-i1',   'b2-i1',   b2i1   !== null ? `${parseFloat(b2i1).toFixed(1)} A` : null);
+        showRow('b2-row-i2',   'b2-i2',   b2i2   !== null ? `${parseFloat(b2i2).toFixed(1)} A` : null);
+        showRow('b2-row-i3',   'b2-i3',   b2i3   !== null ? `${parseFloat(b2i3).toFixed(1)} A` : null);
+        showRow('b2-row-iavg', 'b2-iavg', b2iavg !== null ? `${parseFloat(b2iavg).toFixed(1)} A` : null);
+        showSection('b2-sec-consumo', [b2i1,b2i2,b2i3,b2iavg].some(v => v !== null));
+
+        showRow('b2-row-horas', 'b2-horas', b2horas !== null ? `${parseFloat(b2horas).toFixed(1)} h` : null);
+        showSection('b2-sec-func', b2horas !== null);
+
+    } catch(err){
+        console.error(err);
+        document.getElementById('influx-error').style.display = 'block';
+        document.getElementById('conn-dot').className = 'conn-dot off';
+        document.getElementById('conn-text').textContent = 'SIN CONEXIÓN';
+    }
+}
+
+function buildWave(offsetX, cycles){
+    const w = 400, h = 26, mid = h/2, amp = 8;
+    let d = `M${offsetX},${mid}`;
+    const step = w / (cycles * 2);
+    for(let i = 1; i <= cycles * 2; i++){
+        const x = offsetX + i * step;
+        const y = mid + (i % 2 === 0 ? amp : -amp);
+        d += ` Q${offsetX + (i - 0.5) * step},${y} ${x},${mid}`;
+    }
+    return d;
+}
+
+// ── Gráfico histórico 72h ────────────────────────────────
+let _chart = null;
+
+async function fluxRange(field, divisor = 1){
+    if(!field) return [];
+    const q = `from(bucket:"${CONFIG.influx.bucket}")` +
+        `|> range(start:-72h)` +
+        `|> filter(fn:(r)=>r._measurement=="${CONFIG.measurement}" and r._field=="${field}")` +
+        `|> aggregateWindow(every:15m, fn:mean, createEmpty:false)` +
+        `|> keep(columns:["_time","_value"])`;
+    const text = await fluxQuery(q);
+    const lines = text.split('\n').filter(l => l && !l.startsWith('#') && !l.startsWith(','));
+    if(lines.length < 2) return [];
+    const hdrs = lines[0].split(',');
+    const iTime = hdrs.indexOf('_time'), iVal = hdrs.indexOf('_value');
+    if(iTime < 0 || iVal < 0) return [];
+    return lines.slice(1).map(r => {
+        const cols = r.split(',');
+        const t = cols[iTime], v = cols[iVal];
+        if(!t || v === undefined || v === '') return null;
+        return { x: new Date(t), y: parseFloat(v) / divisor };
+    }).filter(p => p && !isNaN(p.y));
+}
+
+async function renderChart(){
+    // Corriente promedio si el campo existe; si no, se usa la corriente principal como respaldo.
+    const campoCorrB1 = CONFIG.bomba1.campoCorrientePromedio || CONFIG.bomba1.campoCorriente;
+    const campoCorrB2 = CONFIG.bomba2.campoCorrientePromedio || CONFIG.bomba2.campoCorriente;
+
+    const [freqB1, corrB1, corrB2] = await Promise.all([
+        fluxRange(CONFIG.bomba1.campoFrecuencia),
+        fluxRange(campoCorrB1),
+        fluxRange(campoCorrB2)
+    ]);
+    const ctx = document.getElementById('chart-historico').getContext('2d');
+    const cfg = {
+        type: 'line',
+        data: { datasets: [
+            { label: 'Bomba 1 · Frecuencia (Hz)',          data: freqB1, borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,.07)', borderWidth: 1.6, pointRadius: 0, tension: .3, yAxisID: 'yHz' },
+            { label: 'Bomba 1 · Corriente promedio (A)',    data: corrB1, borderColor: '#4dd0ff', backgroundColor: 'transparent', borderWidth: 1.2, pointRadius: 0, tension: .3, yAxisID: 'yA', borderDash: [4,3] },
+            { label: 'Bomba 2 · Corriente promedio (A)',    data: corrB2, borderColor: '#ffab2e', backgroundColor: 'rgba(255,171,46,.07)', borderWidth: 1.6, pointRadius: 0, tension: .3, yAxisID: 'yA' },
+        ]},
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { labels: { color: '#82949f', font: { size: 10 }, boxWidth: 12 } },
+                tooltip: {
+                    backgroundColor: '#101720', borderColor: '#2a3847', borderWidth: 1,
+                    titleColor: '#e7eef3', bodyColor: '#82949f',
+                    callbacks: { title: items => new Date(items[0].parsed.x).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) }
+                }
+            },
+            scales: {
+                x: { type: 'time', time: { unit: 'hour', displayFormats: { hour: 'dd/MM HH:mm' } },
+                     ticks: { color: '#4c5c6b', font: { size: 9 }, maxRotation: 0 }, grid: { color: 'rgba(42,56,71,.5)' } },
+                yHz: { position: 'left', title: { display: true, text: 'Frecuencia (Hz)', color: '#00d4ff', font: { size: 9 } },
+                       ticks: { color: '#4c5c6b', font: { size: 9 } }, grid: { color: 'rgba(42,56,71,.5)' } },
+                yA:  { position: 'right', title: { display: true, text: 'Corriente (A)', color: '#ffab2e', font: { size: 9 } },
+                       ticks: { color: '#4c5c6b', font: { size: 9 } }, grid: { display: false } }
+            }
+        }
+    };
+    if(_chart){ _chart.data.datasets.forEach((ds,i)=>{ ds.data = [freqB1,corrB1,corrB2][i]; }); _chart.update('none'); }
+    else { _chart = new Chart(ctx, cfg); }
+
+    const n = new Date();
+    document.getElementById('chart-range-txt').textContent =
+        `${new Date(n - 72*3600*1000).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})} — ${n.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})}`;
+}
+
+// ── Registro de fallas (72h) ──────────────────────────────
+// Detecta episodios de falla comparando el valor de "código de falla"
+// muestreado cada 2 minutos a lo largo de las últimas 72h.
+async function fluxFaultSeries(field){
+    if(!field) return [];
+    const q = `from(bucket:"${CONFIG.influx.bucket}")` +
+        `|> range(start:-72h)` +
+        `|> filter(fn:(r)=>r._measurement=="${CONFIG.measurement}" and r._field=="${field}")` +
+        `|> aggregateWindow(every:2m, fn:last, createEmpty:false)` +
+        `|> keep(columns:["_time","_value"])`;
+    const text = await fluxQuery(q);
+    const lines = text.split('\n').filter(l => l && !l.startsWith('#') && !l.startsWith(','));
+    if(lines.length < 2) return [];
+    const hdrs = lines[0].split(',');
+    const iTime = hdrs.indexOf('_time'), iVal = hdrs.indexOf('_value');
+    if(iTime < 0 || iVal < 0) return [];
+    return lines.slice(1).map(r => {
+        const cols = r.split(',');
+        const t = cols[iTime], v = cols[iVal];
+        if(!t || v === undefined || v === '') return null;
+        return { t: new Date(t), v: parseInt(parseFloat(v)) };
+    }).filter(p => p && !isNaN(p.v));
+}
+
+function buildEpisodes(series, bombaLabel){
+    const episodes = [];
+    let current = null;
+    for(const p of series){
+        const code = p.v;
+        if(code !== 0){
+            if(!current || current.code !== code){
+                if(current) episodes.push(current);
+                current = { bomba: bombaLabel, code, inicio: p.t, fin: p.t };
+            } else {
+                current.fin = p.t;
+            }
+        } else {
+            if(current){ episodes.push(current); current = null; }
+        }
+    }
+    if(current) episodes.push(current);
+    return episodes;
+}
+
+function fmtDuration(ms){
+    const min = Math.round(ms / 60000);
+    if(min < 1) return '< 1 min';
+    if(min < 60) return `${min} min`;
+    const h = Math.floor(min / 60), m = min % 60;
+    return `${h} h ${m} min`;
+}
+
+async function renderFaultLog(){
+    try{
+        const [s1, s2] = await Promise.all([
+            fluxFaultSeries(CONFIG.bomba1.campoFallaActual),
+            fluxFaultSeries(CONFIG.bomba2.campoFallaActual)
+        ]);
+        const ep1 = buildEpisodes(s1, 'B1');
+        const ep2 = buildEpisodes(s2, 'B2');
+        const all = ep1.concat(ep2).sort((a,b) => b.inicio - a.inicio);
+
+        set('count-b1', `Bomba 1: ${ep1.length} falla${ep1.length===1?'':'s'}`);
+        set('count-b2', `Bomba 2: ${ep2.length} falla${ep2.length===1?'':'s'}`);
+
+        const tbody = document.getElementById('log-tbody');
+        if(!all.length){
+            tbody.innerHTML = `<tr><td colspan="5" class="log-empty">Sin fallas registradas en las últimas 72 horas.</td></tr>`;
+            return;
+        }
+        const now = Date.now();
+        tbody.innerHTML = all.slice(0, 80).map(ev => {
+            const enCurso = (now - ev.fin.getTime()) < 3*60*1000; // último punto muy reciente = falla en curso
+            const desc = CONFIG.descripcionesFalla[ev.code];
+            const codeTxt = desc ? `E${String(ev.code).padStart(2,'0')} · ${desc}` : `E${String(ev.code).padStart(2,'0')}`;
+            const bombaClass = ev.bomba === 'B1' ? 'b1' : 'b2';
+            const bombaTxt = ev.bomba === 'B1' ? 'Bomba 1' : 'Bomba 2';
+            return `<tr>
+                <td><span class="tag ${bombaClass}">${bombaTxt}</span></td>
+                <td>${codeTxt}</td>
+                <td>${fmtTime(ev.inicio)}</td>
+                <td>${enCurso ? '<span class="tag activa">EN CURSO</span>' : fmtTime(ev.fin)}</td>
+                <td>${fmtDuration(ev.fin.getTime() - ev.inicio.getTime())}</td>
+            </tr>`;
+        }).join('');
+    } catch(err){
+        console.error(err);
+        document.getElementById('log-tbody').innerHTML = `<tr><td colspan="5" class="log-empty">No se pudo cargar el registro de fallas.</td></tr>`;
+    }
+}
+
+// ── Arranque ──────────────────────────────────────────────
+fetchLive();
+setInterval(fetchLive, CONFIG.pollMs);
+
+renderChart();
+setInterval(renderChart, CONFIG.chartRefreshMs);
+
+renderFaultLog();
+setInterval(renderFaultLog, CONFIG.chartRefreshMs);
+</script>
+</body>
+</html>

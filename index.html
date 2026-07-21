@@ -512,6 +512,12 @@ const CONFIG = {
     chartRefreshMs: 5 * 60 * 1000,   // frecuencia de refresco del gráfico histórico (ms)
 
     // ── Sistema (Raspberry Pi) ──
+      // Temperatura CPU RPi
+        if(rpiTemp!==null){
+            const t=parseFloat(rpiTemp).toFixed(1);
+            set('cpu-temp',t); set('footer-temp',t);
+        }
+
     sistema: {
         campoTempRaspberry: 'thermal_zone0' // opcional · °C · si tu .py no la manda, el pill del header no se muestra
     },

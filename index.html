@@ -15,7 +15,7 @@
 
     --b1: #00d4ff;   /* Bomba 1 · CFW-11 · variador  → frecuencia variable = azul eléctrico */
     --b1-dim: rgba(0,212,255,.12);
-    --b2: #ffab2e;   /* Bomba 2 · SSW · arranque suave → rampa térmica = ámbar */
+    --b2: #ffab2e;   /* Bomba 2 · SSW-05 · arranque suave → rampa térmica = ámbar */
     --b2-dim: rgba(255,171,46,.12);
 
     --green:  #00e676;
@@ -248,7 +248,7 @@ footer span{color:var(--b1);}
         </div>
         <div>
             <div class="hdr-title">AQUA SCADA</div>
-            <div class="hdr-sub">BOMBA 1 · CFW-11 &nbsp;|&nbsp; BOMBA 2 · SSW</div>
+            <div class="hdr-sub">BOMBA 1 · CFW-11 &nbsp;|&nbsp; BOMBA 2 · SSW-05</div>
         </div>
     </div>
     <div class="hdr-right">
@@ -435,7 +435,7 @@ footer span{color:var(--b1);}
                 <svg viewBox="0 0 24 24"><path d="M12 2a1 1 0 0 1 1 1v1.07A8.99 8.99 0 0 1 20.93 12H22a1 1 0 1 1 0 2h-1.07A8.99 8.99 0 0 1 13 20.93V22a1 1 0 1 1-2 0v-1.07A8.99 8.99 0 0 1 3.07 14H2a1 1 0 1 1 0-2h1.07A8.99 8.99 0 0 1 11 4.07V3a1 1 0 0 1 1-1Zm0 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z"/></svg>
             </div>
             <div class="temp-info">
-                <div class="temp-label">Raspberry Pi · CPU</div>
+                <div class="temp-label">CPU GATEWAY</div>
                 <div class="temp-val" id="temp-rpi-val"><span class="skel"></span></div>
                 <div class="temp-updated" id="temp-rpi-updated">—</div>
             </div>
@@ -483,7 +483,7 @@ footer span{color:var(--b1);}
     </div>
 </main>
 
-<footer>MONITOREO DE BOMBEO &nbsp;·&nbsp; datos vía <span>InfluxDB Cloud</span> &nbsp;·&nbsp; actualiza cada <span id="foot-poll">5</span>s</footer>
+<footer>MONITOREO DE BOMBEO &nbsp;·&nbsp; datos <span></span> &nbsp;·&nbsp; actualizados cada <span id="foot-poll">5</span>s</footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
@@ -1042,77 +1042,6 @@ async function renderFaultLog(){
         document.getElementById('log-tbody').innerHTML = `<tr><td colspan="5" class="log-empty">No se pudo cargar el registro de fallas.</td></tr>`;
     }
 }
-
-// ── Diagnóstico: qué hay REALMENTE en el bucket ──────────
-async function runDiagnostico(){
-    const out = document.getElementById('diag-out');
-    const btn = document.getElementById('btn-diag');
-    out.style.display = 'block';
-    out.textContent = 'Consultando InfluxDB…';
-    btn.disabled = true;
-    try{
-        const qMeas = `from(bucket:"${CONFIG.influx.bucket}")` +
-            `|> range(start:-24h)` +
-            `|> keep(columns:["_measurement"])` +
-            `|> distinct(column:"_measurement")` +
-            `|> group()`;
-        const qFieldsCfg = `from(bucket:"${CONFIG.influx.bucket}")` +
-            `|> range(start:-24h)` +
-            `|> filter(fn:(r)=>r._measurement=="${CONFIG.measurement}")` +
-            `|> keep(columns:["_field"])` +
-            `|> distinct(column:"_field")` +
-            `|> group()`;
-
-        const [measTxt, fieldsTxt] = await Promise.all([fluxQuery(qMeas), fluxQuery(qFieldsCfg)]);
-
-        function extractCol(text){
-            const lines = text.split('\n').filter(l => l && !l.startsWith('#') && !l.startsWith(','));
-            if(lines.length < 2) return [];
-            const hdrs = lines[0].split(',');
-            const iVal = hdrs.indexOf('_value');
-            if(iVal < 0) return [];
-            return lines.slice(1).map(r => r.split(',')[iVal]).filter(Boolean);
-        }
-
-        const measurements = extractCol(measTxt);
-        const fields = extractCol(fieldsTxt);
-
-        let report = `Bucket: "${CONFIG.influx.bucket}"  ·  Org: "${CONFIG.influx.org}"\n\n`;
-
-        report += `📦 Measurements encontrados en las últimas 24h:\n`;
-        report += measurements.length ? measurements.map(m => `  • ${m}`).join('\n') : '  (ninguno — no llegan datos de tu script .py a este bucket, o el token no tiene permiso de lectura)';
-        report += `\n\n➡ CONFIG.measurement actual: "${CONFIG.measurement}"`;
-        report += measurements.length && !measurements.includes(CONFIG.measurement)
-            ? `  ⚠ NO COINCIDE con ninguno de los de arriba — corregilo en CONFIG.\n`
-            : `  ✓\n`;
-
-        report += `\n🔑 Fields encontrados dentro de "${CONFIG.measurement}" (24h):\n`;
-        report += fields.length ? fields.map(f => `  • ${f}`).join('\n') : '  (ninguno — revisá el nombre del measurement de arriba)';
-
-        if(fields.length){
-            const configuredFields = [
-                ...Object.values(CONFIG.bomba1).filter(v => typeof v === 'string' && v),
-                ...Object.values(CONFIG.bomba2).filter(v => typeof v === 'string' && v),
-                CONFIG.sistema.campoTempRaspberry
-            ].filter(Boolean);
-            const faltantes = configuredFields.filter(f => !fields.includes(f));
-            if(faltantes.length){
-                report += `\n\n⚠ Campos configurados en CONFIG que NO existen en InfluxDB:\n`;
-                report += faltantes.map(f => `  • ${f}`).join('\n');
-            } else {
-                report += `\n\n✓ Todos los campos de CONFIG coinciden con los de InfluxDB.`;
-            }
-        }
-
-        out.textContent = report;
-    } catch(err){
-        console.error(err);
-        out.textContent = 'Error al diagnosticar: ' + (err && err.message ? err.message : String(err));
-    } finally {
-        btn.disabled = false;
-    }
-}
-document.getElementById('btn-diag').addEventListener('click', runDiagnostico);
 
 // ── Arranque ──────────────────────────────────────────────
 fetchLive();

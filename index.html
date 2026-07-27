@@ -523,10 +523,10 @@ const CONFIG = {
     // si ese dato no existe — la fila correspondiente simplemente no se muestra.
     bomba1: {
         campoMarcha:            'B1_marcha',                // 0 / 1
-        campoFrecuencia:        'frecuencia',             // Hz (dato principal)
+        campoFrecuencia:        'frecuencia_hz',             // Hz (dato principal)
         campoCorriente:         'corriente',              // A · corriente de salida (dato principal)
         campoFallaActual:       'falla',           // 0 = sin falla
-        campoFallaAnterior:     'B1_codigo_falla_anterior',  // opcional
+        campoFallaAnterior:     'falla_anterior',  // opcional
         campoReferencia:        'B1_referencia_frecuencia',  // opcional · Hz de referencia/setpoint
         campoTensionSalida:     'B1_tension_salida',         // opcional · V
         campoTensionBus:        'B1_tension_bus_cc',         // opcional · Vcc
@@ -538,7 +538,7 @@ const CONFIG = {
         campoTensionL1:         'B1_tension_l1',             // opcional · V de red/alimentación
         campoTensionL2:         'B1_tension_l2',             // opcional · V
         campoTensionL3:         'B1_tension_l3',             // opcional · V
-        campoTemperatura:       'B1_temperatura',            // opcional · °C disipador
+        campoTemperatura:       'temp_disipador',            // opcional · °C disipador
         campoHoras:             'B1_horas_funcionamiento',   // opcional · h
         frecuenciaMax: 60,     // Hz, tope del gauge circular
         corrienteNominal: 15,  // A, para la barra/porcentaje de corriente (ajustar según motor)

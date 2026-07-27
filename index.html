@@ -532,7 +532,7 @@ const CONFIG = {
         campoCorrienteL1:       'B1_corriente_l1',           // opcional · A
         campoCorrienteL2:       'B1_corriente_l2',           // opcional · A
         campoCorrienteL3:       'B1_corriente_l3',           // opcional · A
-        campoCorrientePromedio: '',                          // opcional · A · vacío = usa campoCorriente ('corriente') como respaldo, ya que tu .py no manda un promedio aparte
+        campoCorrientePromedio: 'B1_corriente_promedio',                          // opcional · A · vacío = usa campoCorriente ('corriente') como respaldo, ya que tu .py no manda un promedio aparte
         campoCorrientePorcentaje: 'B1_corriente_porcentaje', // opcional · % de la nominal
         campoTensionL1:         'B1_tension_l1',             // opcional · V de red/alimentación
         campoTensionL2:         'B1_tension_l2',             // opcional · V
@@ -917,8 +917,8 @@ async function renderChart(){
     const cfg = {
         type: 'line',
         data: { datasets: [
-            { label: 'Bomba 1 · Frecuencia (Hz)',          data: freqB1, borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,.07)', borderWidth: 1.6, pointRadius: 0, tension: .3, yAxisID: 'yHz' },
-            { label: 'Bomba 1 · Corriente promedio (A)',    data: corrB1, borderColor: '#4dd0ff', backgroundColor: 'transparent', borderWidth: 1.2, pointRadius: 0, tension: .3, yAxisID: 'yA', borderDash: [4,3] },
+            { label: 'Bomba 1 · frecuencia (Hz)',          data: freqB1, borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,.07)', borderWidth: 1.6, pointRadius: 0, tension: .3, yAxisID: 'yHz' },
+            { label: 'Bomba 1 · corriente (A)',    data: corrB1, borderColor: '#4dd0ff', backgroundColor: 'transparent', borderWidth: 1.2, pointRadius: 0, tension: .3, yAxisID: 'yA', borderDash: [4,3] },
             { label: 'Bomba 2 · Corriente promedio (A)',    data: corrB2, borderColor: '#ffab2e', backgroundColor: 'rgba(255,171,46,.07)', borderWidth: 1.6, pointRadius: 0, tension: .3, yAxisID: 'yA' },
         ]},
         options: {

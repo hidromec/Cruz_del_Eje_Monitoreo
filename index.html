@@ -900,9 +900,9 @@ async function fluxRange(field, divisor = 1){
 
 async function renderChart(){
     // Corriente promedio si el campo existe; si no, se usa la corriente principal como respaldo.
-    const campoFreqB1 = CONFIG.bomba1.campofrecuencia;
-    const campoCorrB1 = CONFIG.bomba1.campocorriente;
-    const campoCorrB2 = CONFIG.bomba2.campocorriente;
+    const campoFreqB1 = CONFIG.bomba1.campoFrecuencia;
+    const campoCorrB1 = CONFIG.bomba1.campoCorriente;
+    const campoCorrB2 = CONFIG.bomba2.campoCorriente;
 
     const [freqB1, corrB1, corrB2] = await Promise.all([
         fluxRange(CONFIG.bomba1.campoFrecuencia),
@@ -915,7 +915,7 @@ async function renderChart(){
         data: { datasets: [
             { label: 'Bomba 1 · frecuencia (Hz)',          data: freqB1, borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,.07)', borderWidth: 1.6, pointRadius: 0, tension: .3, yAxisID: 'yHz' },
             { label: 'Bomba 1 · corriente (A)',    data: corrB1, borderColor: '#4dd0ff', backgroundColor: 'transparent', borderWidth: 1.2, pointRadius: 0, tension: .3, yAxisID: 'yA', borderDash: [4,3] },
-            { label: 'Bomba 2 · Corriente promedio (A)',    data: corrB2, borderColor: '#ffab2e', backgroundColor: 'rgba(255,171,46,.07)', borderWidth: 1.6, pointRadius: 0, tension: .3, yAxisID: 'yA' },
+            { label: 'Bomba 2 · corriente promedio (A)',    data: corrB2, borderColor: '#ffab2e', backgroundColor: 'rgba(255,171,46,.07)', borderWidth: 1.6, pointRadius: 0, tension: .3, yAxisID: 'yA' },
         ]},
         options: {
             responsive: true, maintainAspectRatio: false,
@@ -938,7 +938,7 @@ async function renderChart(){
             }
         }
     };
-    if(_chart){ _chart.data.datasets.forEach((ds,i)=>{ ds.data = [freqB1,corrB1,corrB2][i]; }); _chart.update('none'); }
+    if(_chart){ _chart.data.datasets.forEach((ds,i)=>{ ds.data = [frecuencia,corriente,corriente][i]; }); _chart.update('none'); }
     else { _chart = new Chart(ctx, cfg); }
 
     const n = new Date();

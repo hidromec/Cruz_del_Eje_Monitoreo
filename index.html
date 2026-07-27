@@ -900,9 +900,9 @@ async function fluxRange(field, divisor = 1){
 
 async function renderChart(){
     // Corriente promedio si el campo existe; si no, se usa la corriente principal como respaldo.
-    const campoFreqB1 = CONFIG.bomba1.campoFrecuencia;
-    const campoCorrB1 = CONFIG.bomba1.campoCorriente;
-    const campoCorrB2 = CONFIG.bomba2.campoCorriente;
+    const campoFreqB1 = CONFIG.bomba1.campofrecuencia;
+    const campoCorrB1 = CONFIG.bomba1.campocorriente;
+    const campoCorrB2 = CONFIG.bomba2.campocorriente;
 
     const [freqB1, corrB1, corrB2] = await Promise.all([
         fluxRange(CONFIG.bomba1.campoFrecuencia),
